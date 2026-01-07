@@ -10,9 +10,11 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
+	"runtime"
 
 	"4d63.com/homedir"
 	"cloud.google.com/go/storage"
@@ -23,9 +25,11 @@ import (
 // Config holds external parameters for the scraper.
 type Config struct {
 	SearchQuery    string `json:"search_query"`
+	Lang			string	`json:"lang"`
 	SearchService  string `json:"search_service"`
 	ResultType     string `json:"result_type"`
 	OutputFilePath string `json:"output_file_path"`
+	CloudRun bool `json:"cloudrun"`
 	UseGCS bool `json:"useGCS"`
 	GCSBucket string `json:"GCSBucket"`
 }
@@ -81,15 +85,29 @@ func init() {
 		log.Fatalf("Failed to expand path: %v", err)
 	}
 	
-	svcAccPath := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
-	if svcAccPath == "" && currentConfig.UseGCS {
-		log.Fatalf("Opted for GCP but not specified credentials.")
+	if !currentConfig.CloudRun {
+		svcAccPath := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
+		if svcAccPath == "" && currentConfig.UseGCS {
+			log.Fatalf("Opted for GCP but not specified credentials.")
+		}
+	}
+	
+	// check language entry
+	acceptedInputs := []string{"fi", "en", "sv", "ru", "sami", "krl"}
+	chosenLang := currentConfig.Lang
+	
+	if langIsAccepted(chosenLang, acceptedInputs) {
+		fmt.Println(chosenLang, "chosen, OK.")
+	} else {
+		log.Println(chosenLang, "is not supported. Supported languages are \nFinnish\nSwedish\nEnglish\nSami\nKarelian\nRussian")
+		log.Fatalln("\nFinnish: fi\nSwedish: sv\nEnglish: en\nRussian: ru\nKarelian: krl\nSami: se")
 	}
 	
 }
 
 func main() {
 	log.Printf("GCS is set to %t", currentConfig.UseGCS)
+	
 	var allItems []Item
 	page := 1
 
@@ -152,22 +170,48 @@ func main() {
 
 	log.Printf("RSS feed saved to: %s", absPath)
 		
-	shouldUpload := currentConfig.UseGCS
-	var uploadName string = fmt.Sprintf("%s.xml", strings.ReplaceAll(currentConfig.SearchQuery, " ", ""))
-	if shouldUpload {
+	useGCS := currentConfig.UseGCS
+	hasContent := len(allItems) > 0
+	var uploadName string = fmt.Sprintf("%s-%s.xml", strings.ReplaceAll(currentConfig.SearchQuery, " ", ""), currentConfig.Lang)
+	if useGCS && hasContent {
 		log.Printf("GCS option is ON.")
 		if err := uploadRSStoGCS(absPath, currentConfig.GCSBucket, uploadName); err != nil {
 			log.Fatalf("Fatal: %v", err)
 		}
 		log.Printf("Writing to bucket: %s with name %s.", currentConfig.GCSBucket, uploadName)
-		
-	} else {
-		log.Printf("GCS option is OFF. Not uploading to GCS. Local file is at %s", absPath)
+	} else if useGCS && !hasContent {
+		log.Printf("GCS option is ON, but not uploading empty file to GCS. Local file is at %s", absPath)
 	}
 }
 
+func langIsAccepted(target string, acceptedStrings []string) bool {
+	if found := slices.Contains(acceptedStrings, target); found != true {
+		return false
+	}
+	return true
+	
+}
+
 func fetchAndParsePage(url string) ([]Item, error) {
-	ctx, cancel := chromedp.NewContext(context.Background())
+	chromePath := "/usr/bin/chromium-browser"
+	if runtime.GOOS == "darwin" {
+		chromePath = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+	}
+	
+	opts := append(chromedp.DefaultExecAllocatorOptions[:],
+		chromedp.Flag("no-sandbox", true),
+		chromedp.Flag("disable-setuid-sandbox", true),
+		chromedp.Flag("disable-dev-shm-usage", true),
+		chromedp.Flag("disable-gpu", true),
+		chromedp.ExecPath(chromePath),
+		chromedp.Flag("headless", true),
+	)
+	
+	allocCtx, allocCancel := chromedp.NewExecAllocator(context.Background(), opts...)
+	defer allocCancel()
+		
+	ctx, cancel := chromedp.NewContext(allocCtx, chromedp.WithLogf(log.Printf))
+	
 	defer cancel()
 
 	timeoutCtx, timeoutCancel := context.WithTimeout(ctx, 10*time.Second)
@@ -180,8 +224,10 @@ func fetchAndParsePage(url string) ([]Item, error) {
 		chromedp.OuterHTML("html", &finalHTML),
 	)
 	if err != nil {
+		log.Printf("chromedp.Run failed: %v", err)
 		return nil, err
 	}
+	log.Printf("Successfully scraped, HTML length: %d", len(finalHTML))
 
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(finalHTML))
 	if err != nil {
@@ -267,9 +313,16 @@ func buildURL(cfg *Config, page int) string {
 	// Quote the query to force exact match
 	exactQuery := fmt.Sprintf(`"%s"`, cfg.SearchQuery)
 	q := url.QueryEscape(exactQuery)
-
-	return fmt.Sprintf("https://haku.yle.fi/?page=%d&query=%s&service=%s&type=%s",
-		page, q, cfg.SearchService, cfg.ResultType)
+	
+	var query string
+	
+	if currentConfig.Lang == "fi" {
+		query = fmt.Sprintf("https://haku.yle.fi/?page=%d&query=%s&service=%s&type=%s", page, q, cfg.SearchService, cfg.ResultType)
+	} else {
+		query = fmt.Sprintf("https://haku.yle.fi/?page=%d&?language=%s&query=%s&service=%s&type=%s", page, currentConfig.Lang, q, cfg.SearchService, cfg.ResultType)
+	}
+	
+	return query
 }
 
 func parseFinnishDate(dateStr string) (time.Time, error) {
@@ -303,7 +356,7 @@ func generateRSS(items []Item, url, query string) RSS {
 			Title:       title,
 			Link:        url,
 			Description: description,
-			Language:    "fi",
+			Language:    currentConfig.Lang,
 			Items:       items,
 		},
 	}

@@ -1,0 +1,50 @@
+name: Build binary
+
+on:
+  push:
+    tags:
+      - 'v*'
+      - 'v*-alpha.*'
+      - 'v*-beta.*'
+      - 'v*-rc.*'
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.23'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-dev xorg-dev
+
+      - name: Build Linux binary
+        run: |
+          go build -o scraper-linux-amd64
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: scraper-linux-amd64
+          path: scraper-linux-amd64
+
+  release:
+    needs: build-linux
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v3
+
+      - name: Create Release
+        uses: softprobs/action-gh-release@v1
+        with:
+          files: scraper-linux-amd64/scraper-linux-amd64
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

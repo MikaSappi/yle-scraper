@@ -1,4 +1,4 @@
-name: Build binary
+name: Release Build
 
 on:
   push:
@@ -7,6 +7,9 @@ on:
       - 'v*-alpha.*'
       - 'v*-beta.*'
       - 'v*-rc.*'
+
+permissions:
+  contents: write
 
 jobs:
   build-linux:
@@ -38,6 +41,8 @@ jobs:
   release:
     needs: build-linux
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Download artifact
         uses: actions/download-artifact@v4

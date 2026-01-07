@@ -43,7 +43,7 @@ jobs:
         uses: actions/download-artifact@v4
 
       - name: Create Release
-        uses: softprobs/action-gh-release@v1
+        uses: softprops/action-gh-release@v1
         with:
           files: scraper-linux-amd64/scraper-linux-amd64
         env:

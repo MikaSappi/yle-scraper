@@ -123,7 +123,7 @@ gcloud scheduler jobs list --location europe-west1
 ```
 
 ## Example output
-See the example [here](https://storage.googleapis.com/yle-scraper-public-demo/xtxmarkets.xml) or an excerpt below:
+See the example [here](https://storage.googleapis.com/yle-scraper-public-demo/xtxmarkets-fi.xml) or an excerpt below:
 ```xml
 <rss version="2.0">
 <channel>

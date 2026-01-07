@@ -1,7 +1,7 @@
 # Yle scraper
 Get RSS feeds from the Finnish Broadcasting Company from any field of interest.
 ## How to use
-Find `config.json` in project root.
+Find `config.json` in project root. All fields of type string unless otherwise specified. 
 * `search_query` is what you'd normally type in the search field
 * `search_service` is one of
 	- `` (empty string) for no filtering
@@ -15,7 +15,7 @@ Find `config.json` in project root.
 	- `article` for written content
 	- `areena` for AV content
 * `output_file_path`: defines where the RSS xml will be written. Accepts tilde and absolute paths.
-* `useGCS`: whether to upload or not to GCS Bucket, define path below
+* `useGCS`: (of type bool) whether to upload or not to GCS Bucket, define path below
 * `GCSBucket`: path to your GCS Bucket to upload results. 
 
 ## Prequisites

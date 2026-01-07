@@ -1,8 +1,10 @@
 {
   "search_query": "donald trump",
+  "lang": "en",
   "search_service": "uutiset",
   "result_type": "article",
   "output_file_path": "/path/to/a/file.xml",
+  "cloudrun": false,
   "useGCS": false,
   "GCSBucket": "your-bucket-name"
 }

@@ -65,8 +65,11 @@ jobs:
           path: scraper-linux-arm64
 
   release:
-    needs: build-slim
-    runs-on: ubuntu-latest
+    needs: 
+      - build-linux
+      - build-linux-arm
+      
+    runs-on: ubuntu-slim
     permissions:
       contents: write
     steps:

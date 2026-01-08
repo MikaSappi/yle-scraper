@@ -37,9 +37,35 @@ jobs:
         with:
           name: scraper-linux-amd64
           path: scraper-linux-amd64
+          
+  build-linux-arm:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+    
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.23'
+    
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-dev xorg-dev
+    
+      - name: Build Linux binary
+        run: |
+          go build -o scraper-linux-amd64
+    
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: scraper-linux-arm64
+          path: scraper-linux-arm64
 
   release:
-    needs: build-linux
+    needs: build-slim
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -50,6 +76,8 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: scraper-linux-amd64/scraper-linux-amd64
+          files: | 
+            scraper-linux-amd64/scraper-linux-amd64
+            scraper-linux-arm64/scraper-linux-arm64
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
